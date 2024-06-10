@@ -1,5 +1,6 @@
 import json
 import socket
+from threading import Thread
 
 SOCK_BUFFER = 1024
 
@@ -40,6 +41,34 @@ def empaqueta_datos(notas: list[str], modo: str) -> dict:
     return r_dict
 
 
+def client_handler(conn, client_address):
+    print(f"Conexion de {client_address[0]}:{client_address[1]}")
+    try:
+        while True:
+            dato = conn.recv(SOCK_BUFFER)
+        
+            if dato:
+                print(f"Recibí: {dato}")
+                d = json.loads(dato)
+                if "codigo" in d.keys() and "modo" in d.keys():
+                    notas = busca_info(d["codigo"])
+                    if len(notas) > 0:
+                        msg_dict = empaqueta_datos(notas, d["modo"])
+                    else:
+                        msg_dict = {"estado": "error", "mensaje": "No existen registros para el codigo indicado"}
+                else:
+                    msg_dict = {"estado": "error", "mensaje": "Solicitud enviada en formato incorrecto"}
+                conn.sendall(json.dumps(msg_dict).encode("utf-8"))
+            else:
+                print("No hay más datos")
+                break
+    except ConnectionResetError:
+        print("El cliente cerró la conexión de manera abrupta")
+    finally:
+        print("Cerrando la conexión")
+        conn.close()
+
+
 if __name__ == '__main__':
     sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     server_address = ("0.0.0.0", 5000)
@@ -55,27 +84,5 @@ if __name__ == '__main__':
         conn, client_address = sock.accept()
         print(f"Conexion de {client_address[0]}:{client_address[1]}")
 
-        try:
-            while True:
-                dato = conn.recv(SOCK_BUFFER)
-            
-                if dato:
-                    print(f"Recibí: {dato}")
-                    d = json.loads(dato)
-                    if "codigo" in d.keys() and "modo" in d.keys():
-                        notas = busca_info(d["codigo"])
-                        if len(notas) > 0:
-                            msg_dict = empaqueta_datos(notas, d["modo"])
-                        else:
-                            msg_dict = {"estado": "error", "mensaje": "No existen registros para el codigo indicado"}
-                    else:
-                        msg_dict = {"estado": "error", "mensaje": "Solicitud enviada en formato incorrecto"}
-                    conn.sendall(json.dumps(msg_dict).encode("utf-8"))
-                else:
-                    print("No hay más datos")
-                    break
-        except ConnectionResetError:
-            print("El cliente cerró la conexión de manera abrupta")
-        finally:
-            print("Cerrando la conexión")
-            conn.close()
+        t = Thread(target=client_handler, args=(conn, client_address))
+        t.start()
