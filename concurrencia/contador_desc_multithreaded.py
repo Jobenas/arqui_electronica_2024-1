@@ -2,7 +2,7 @@ import time
 from threading import Thread
 
 
-N = 50_000_000
+N = 70_000_000
 
 
 def cuenta(n):
